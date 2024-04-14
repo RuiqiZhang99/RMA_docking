@@ -22,7 +22,7 @@ import argparse
 import gymnasium as gym
 import numpy as np
 import torch
-from stable_baselines3 import PPO
+# from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -31,22 +31,27 @@ from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import DroneModel, ObservationType, ActionType
 from gym_pybullet_drones.envs.BaseHetero import DroneEntity
-from gym_pybullet_drones.envs.MultiDocking import MultiDocking
+from gym_pybullet_drones.envs.TwoDroneDocking import MultiDocking
+from gym_pybullet_drones.rma.ppo import PPO
+from gym_pybullet_drones.rma.rma_phase1 import RMA_phase1
+
+import wandb
 
 DEFAULT_GUI = True
-DEFAULT_RECORD_VIDEO = False
+DEFAULT_RECORD_VIDEO = True
 DEFAULT_OUTPUT_FOLDER = 'results'
 # DEFAULT_COLAB = False
 
 DEFAULT_OBS = ObservationType('kin') # 'kin' or 'rgb'
-DEFAULT_ACT = ActionType('one_d_rpm') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
+DEFAULT_ACT = ActionType('rpm') # 'rpm' or 'pid' or 'vel' or 'one_d_rpm' or 'one_d_pid'
 DRONE_CFG = [DroneEntity(drone_model=DroneModel.CF2X), DroneEntity(drone_model=DroneModel.CF2X)]
 # DEFAULT_MA = True
 
 parser = argparse.ArgumentParser(description='Single agent reinforcement learning example script')
-parser.add_argument('--gui',                default=DEFAULT_GUI,           type=str2bool,      help='Whether to use PyBullet GUI (default: True)', metavar='')
-parser.add_argument('--record_video',       default=DEFAULT_RECORD_VIDEO,  type=str2bool,      help='Whether to record a video (default: False)', metavar='')
-parser.add_argument('--output_folder',      default=DEFAULT_OUTPUT_FOLDER, type=str,           help='Folder where to save logs (default: "results")', metavar='')
+# parser.add_argument('--trial', default='1', type=str, help='The Number of Trials', metavar='')
+parser.add_argument('--gui', default=DEFAULT_GUI, type=str2bool, help='Whether to use PyBullet GUI (default: True)', metavar='')
+parser.add_argument('--record_video', default=DEFAULT_RECORD_VIDEO,  type=str2bool, help='Whether to record a video (default: False)', metavar='')
+parser.add_argument('--output_folder', default=DEFAULT_OUTPUT_FOLDER, type=str, help='Folder where to save logs (default: "results")', metavar='')
 args = parser.parse_args()
 
 
@@ -62,27 +67,29 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
 
     
     train_env = make_vec_env(MultiDocking,
-                            env_kwargs=dict(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=500, pyb_freq=500),
-                            n_envs=50,
-                            seed=0,
+                            env_kwargs=dict(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=30, pyb_freq=240),
+                            n_envs=1,
+                            seed=10086,
                             )
-    eval_env = MultiDocking(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=500, pyb_freq=500)
+    eval_env = MultiDocking(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=30, pyb_freq=240)
 
     # =========================  Check the Env Space ===============================
     print('[INFO] Action space:', train_env.action_space)
     print('[INFO] Observation space:', train_env.observation_space)
 
     # ======================  Define the Train function ============================
+    wandb.init(project="real_world_learning", name=f"run_1", entity="hiperlab")
+    
     model = PPO(policy = 'MlpPolicy',
                 env = train_env,
                 policy_kwargs = dict(
                 activation_fn= torch.nn.Tanh, #torch.nn.ReLU,
-                net_arch=[dict(pi=[256, 256], vf=[512, 512])],
+                # net_arch=[dict(pi=[256, 256], vf=[512, 512])],
                 log_std_init=-0.5,
                 ),
                 use_sde = False,
-                n_steps = 500,
-                batch_size = 25000,
+                n_steps = 10,
+                batch_size = 32,
                 seed = 1,
                 # tensorboard_log=filename+'/tb/',
                 ent_coef = 0.0,
@@ -102,14 +109,16 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
                                  verbose=1,
                                  best_model_save_path=filename+'/',
                                  log_path=filename+'/',
-                                 eval_freq=200,
+                                 eval_freq=100,
                                  deterministic=True,
-                                 render=True)
+                                 render=False)
     
     
-    model.learn(total_timesteps=int(1e7),
+    model.learn(total_timesteps=int(1e6),
                 callback=eval_callback,
                 log_interval=100)
+    
+    wandb.finish()
 
     #### Save the model ########################################
     model.save(filename+'/final_model.zip')
@@ -135,21 +144,22 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
                             drone_cfg=DRONE_CFG,
                             obs=DEFAULT_OBS,
                             act=DEFAULT_ACT,
-                            ctrl_freq=30, 
-                            pyb_freq=240,
+                            ctrl_freq=200, 
+                            pyb_freq=200,
                             record=record_video)
     test_env_nogui = MultiDocking(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT)
     logger = Logger(logging_freq_hz=int(test_env.CTRL_FREQ),
                 drone_cfg=DRONE_CFG,
                 output_folder=output_folder,
+                num_drones=len(DRONE_CFG)
                 )
 
     mean_reward, std_reward = evaluate_policy(model, test_env_nogui, n_eval_episodes=10)
     print("\n\n\nMean reward ", mean_reward, " +- ", std_reward, "\n\n")
 
-    obs, info = test_env.reset(seed=42, options={})
+    obs, info = test_env.reset(seed=64, options={})
     start = time.time()
-    for i in range((test_env.EPISODE_LEN_SEC+2)*test_env.CTRL_FREQ):
+    for i in range(int((test_env.EPISODE_LEN_SEC+2)*test_env.CTRL_FREQ)):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = test_env.step(action)
         obs2 = obs.squeeze()

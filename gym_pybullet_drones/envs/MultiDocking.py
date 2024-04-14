@@ -13,9 +13,6 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType, Obs
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
 
-
-
-
 class BaseRLHetero(BaseHetero):
     """Base single and multi-agent environment class for reinforcement learning."""
     
@@ -331,8 +328,6 @@ class BaseRLHetero(BaseHetero):
 class MultiDocking(BaseRLHetero):
     """Multi-agent RL problem: Flying-Battery Docking."""
 
-    ################################################################################
-
     def __init__(self,
                  drone_cfg: list=[DroneEntity(drone_model=DroneModel.CF2X), DroneEntity(drone_model=DroneModel.CF2X)],
                  neighbourhood_radius: float=np.inf,
@@ -341,12 +336,13 @@ class MultiDocking(BaseRLHetero):
                  physics: Physics=Physics.PYB,
                  pyb_freq: int = 200,
                  ctrl_freq: int = 200,
-                 sim_time: float = 8.0, # Simulation time in second.
+                 sim_time: float = 10.0, # Simulation time in second.
                  gui=False,
                  record=False,
                  obs: ObservationType=ObservationType.KIN,
                  act: ActionType=ActionType.RPM
                  ):
+        
         """Initialization of a multi-agent RL environment.
 
         Using the generic multi-agent RL superclass.
@@ -393,9 +389,15 @@ class MultiDocking(BaseRLHetero):
                          act=act
                          )
         self.NUM_DRONES = len(drone_cfg)
-        self.TARGET_POS = self.INIT_XYZS + np.array([[0,0,1/(i+1)] for i in range(self.NUM_DRONES)])
+        
+        self.TARGET_POS = np.array([
+            [0, 0, 1.5],
+            [0, 0, 1.7]
+        ])
+        self.TARGET_VEL = np.zeros_like(self.TARGET_POS)
+        self.TARGET_ACC = np.zeros_like(self.TARGET_POS)
+        # self.TARGET_POS = self.INIT_XYZS + np.array([[0,0,1/(i+1)] for i in range(self.NUM_DRONES)])
 
-    ################################################################################
     
     def _computeReward(self):
         """Computes the current reward value.
@@ -406,10 +408,12 @@ class MultiDocking(BaseRLHetero):
             The reward.
 
         """
+        self.alive_reward = 3
         states = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
         ret = 0
         for i in range(self.NUM_DRONES):
-            ret += max(0, 2 - np.linalg.norm(self.TARGET_POS[i,:]-states[i][0:3])**4) * (30/self.CTRL_FREQ)
+            ret += self.alive_reward - np.linalg.norm(self.TARGET_POS[i,:]-states[i][0:3])**4 \
+            * (30/self.CTRL_FREQ)
         return ret
 
     ################################################################################

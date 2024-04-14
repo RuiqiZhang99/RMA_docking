@@ -5,7 +5,7 @@ from typing import Any, Dict, Generator, List, Optional, Union
 
 import numpy as np
 import torch as th
-from gym import spaces
+from gymnasium import spaces
 from typing import Any, Callable, Dict, List, NamedTuple, Tuple, Union
 
 from stable_baselines3.common.preprocessing import get_action_dim, get_obs_shape

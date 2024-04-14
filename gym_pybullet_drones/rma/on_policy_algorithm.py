@@ -2,19 +2,20 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch as th
 from genericpath import exists
 from ruamel.yaml import YAML
 from stable_baselines3.common.base_class import BaseAlgorithm
-from algos.rl.rma.buffer import Ph1RolloutBuffer
+from gym_pybullet_drones.rma.buffer import Ph1RolloutBuffer
 
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.type_aliases import (GymEnv, MaybeCallback, Schedule)
 from stable_baselines3.common.utils import safe_mean
 from stable_baselines3.common.vec_env import VecEnv
+from stable_baselines3.common.buffers import DictRolloutBuffer, RolloutBuffer
 
 import wandb
 from collections import defaultdict
@@ -84,14 +85,14 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         super(OnPolicyAlgorithm, self).__init__(
             policy=policy,
             env=env,
-            policy_base=ActorCriticPolicy,
+            # policy_base=ActorCriticPolicy,
             learning_rate=learning_rate,
             policy_kwargs=policy_kwargs,
             verbose=verbose,
             device=device,
             use_sde=use_sde,
             sde_sample_freq=sde_sample_freq,
-            create_eval_env=create_eval_env,
+            # create_eval_env=create_eval_env,
             support_multi_env=True,
             seed=seed,
             tensorboard_log=tensorboard_log,
@@ -156,7 +157,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self,
         env: VecEnv,
         callback: BaseCallback,
-        rollout_buffer: Ph1RolloutBuffer,
+        rollout_buffer: Ph1RolloutBuffer, # Ph1RolloutBuffer,
         n_rollout_steps: int,
     ) -> bool:
         """
@@ -210,7 +211,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 )
 
             new_obs, rewards, dones, infos = env.step(clipped_actions)
-            privileged_actions = env.getQuadPrivAct()
+            # privileged_actions = env.getQuadPrivAct()
             # ! dagger.step
             self.num_timesteps += env.num_envs
 
@@ -225,7 +226,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             if isinstance(self.action_space, gym.spaces.Discrete):
                 # Reshape in case of discrete action
                 actions = actions.reshape(-1, 1)
-            rollout_buffer.add(obs_norm, actions, privileged_actions, rewards, self._last_episode_starts, values, log_probs)
+            # rollout_buffer.add(obs_norm, actions, privileged_actions, rewards, self._last_episode_starts, values, log_probs)
+            rollout_buffer.add(obs_norm, actions, rewards, self._last_episode_starts, values, log_probs)
 
             self._last_obs = new_obs
             self._last_episode_starts = dones
@@ -258,22 +260,46 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         Test the policy
         """
         raise NotImplementedError
+    
+    def _dump_logs(self, iteration: int) -> None:
+        """
+        Write log.
+
+        :param iteration: Current logging iteration
+        """
+        assert self.ep_info_buffer is not None
+        assert self.ep_success_buffer is not None
+
+        time_elapsed = max((time.time_ns() - self.start_time) / 1e9, sys.float_info.epsilon)
+        fps = int((self.num_timesteps - self._num_timesteps_at_start) / time_elapsed)
+        self.logger.record("time/iterations", iteration, exclude="tensorboard")
+        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+            self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+            self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+        self.logger.record("time/fps", fps)
+        self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
+        self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+        if len(self.ep_success_buffer) > 0:
+            self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
+        self.logger.dump(step=self.num_timesteps)
 
     def learn(
         self,
         total_timesteps: int,
         callback: MaybeCallback = None,
         log_interval: Tuple = (10, 100),
-        eval_env: Optional[GymEnv] = None,
-        eval_freq: int = -1,
-        n_eval_episodes: int = 5,
+        # eval_env: Optional[GymEnv] = None,
+        # eval_freq: int = -1,
+        # n_eval_episodes: int = 5,
         tb_log_name: str = "OnPolicyAlgorithm",
-        eval_log_path: Optional[str] = None,
+        # eval_log_path: Optional[str] = None,
         reset_num_timesteps: bool = True,
-        env_cfg: str = None,
+        # env_cfg: str = None,
+        progress_bar: bool = False,
     ) -> "OnPolicyAlgorithm":
         iteration = 0
 
+        '''
         total_timesteps, callback = self._setup_learn(
             total_timesteps,
             eval_env,
@@ -284,6 +310,14 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             reset_num_timesteps,
             tb_log_name,
         )
+        '''
+        total_timesteps, callback = self._setup_learn(
+            total_timesteps,
+            callback,
+            reset_num_timesteps,
+            tb_log_name,
+            progress_bar,
+        )
 
         new_cfg_dir = self.logger.get_dir() + "/config.yaml"
         with open(new_cfg_dir, "w") as outfile:
@@ -291,15 +325,14 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         callback.on_training_start(locals(), globals())
 
-        while self.num_timesteps < total_timesteps:
-            self.env.setTimestep(self.num_timesteps)
-            self.eval_env.setTimestep(self.num_timesteps)
+        # while self.num_timesteps < total_timesteps:
+            # self.env.setTimestep(self.num_timesteps)
+            # self.eval_env.setTimestep(self.num_timesteps)
             
-            continue_training = self.collect_rollouts(
-                self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps
-            )
+        while self.num_timesteps < total_timesteps:
+            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
 
-            if continue_training is False:
+            if not continue_training:
                 break
 
             iteration += 1

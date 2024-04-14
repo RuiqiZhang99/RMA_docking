@@ -175,21 +175,6 @@ class BaseHetero(gym.Env):
         for drone_idx, drone_entity in enumerate(self.DRONE_CFG):
             setattr(self, f'DRONE_{drone_idx}', drone_entity)
         
-        '''
-        #===================== Compute constants ======================
-        self.GRAVITY = self.G*self.M
-        self.HOVER_RPM = np.sqrt(self.GRAVITY / (4*self.KF))
-        self.MAX_RPM = np.sqrt((self.THRUST2WEIGHT_RATIO*self.GRAVITY) / (4*self.KF))
-        self.MAX_THRUST = (4*self.KF*self.MAX_RPM**2)
-        if self.DRONE_MODEL == DroneModel.CF2X:
-            self.MAX_XY_TORQUE = (2*self.L*self.KF*self.MAX_RPM**2)/np.sqrt(2)
-        elif self.DRONE_MODEL == DroneModel.CF2P:
-            self.MAX_XY_TORQUE = (self.L*self.KF*self.MAX_RPM**2)
-        elif self.DRONE_MODEL == DroneModel.RACE:
-            self.MAX_XY_TORQUE = (2*self.L*self.KF*self.MAX_RPM**2)/np.sqrt(2)
-        self.MAX_Z_TORQUE = (2*self.KM*self.MAX_RPM**2)
-        self.GND_EFF_H_CLIP = 0.25 * self.PROP_RADIUS * np.sqrt((15 * self.MAX_RPM**2 * self.KF * self.GND_EFF_COEFF) / self.MAX_THRUST)
-        '''
         #============ Create attributes for vision tasks =============
         if self.RECORD:
             self.ONBOARD_IMG_PATH = os.path.join(self.OUTPUT_FOLDER, "recording_" + datetime.now().strftime("%m.%d.%Y_%H.%M.%S"))
@@ -210,7 +195,7 @@ class BaseHetero(gym.Env):
                 for i in range(self.NUM_DRONES):
                     os.makedirs(os.path.dirname(self.ONBOARD_IMG_PATH+"/drone_"+str(i)+"/"), exist_ok=True)
         
-        #================== Connect to Gym Gui ======================
+        # ================== Connect to Gym GUI ======================
         if self.GUI:
             # With debug GUI
             self.CLIENT = p.connect(p.GUI)
@@ -411,6 +396,9 @@ class BaseHetero(gym.Env):
             if self.PYB_STEPS_PER_CTRL > 1 and self.PHYSICS in [Physics.DYN, Physics.PYB_GND, Physics.PYB_DRAG, Physics.PYB_DW, Physics.PYB_GND_DRAG_DW]:
                 self._updateAndStoreKinematicInformation()
             # Step the simulation using the desired physics update
+            # !!!!! UPDATE: last velocity and angular velocity are needed to simulate the accelerator (IMU)
+            self.last_vel, self.last_ang_v = self.vel, self.ang_v
+            
             for i in range (self.NUM_DRONES):
                 if self.PHYSICS == Physics.PYB:
                     self._physics(clipped_action[i, :], i)
@@ -437,6 +425,7 @@ class BaseHetero(gym.Env):
             self.last_clipped_action = clipped_action
         # Update and store the drones kinematic information
         self._updateAndStoreKinematicInformation()
+        self.acc, self.ang_acc = self.PYB_FREQ*(self.vel-self.last_vel), self.PYB_FREQ*(self.ang_v-self.last_ang_v)
         # Prepare the return values
         obs = self._computeObs()
         reward = self._computeReward()
@@ -537,6 +526,10 @@ class BaseHetero(gym.Env):
         self.rpy = np.zeros((self.NUM_DRONES, 3))
         self.vel = np.zeros((self.NUM_DRONES, 3))
         self.ang_v = np.zeros((self.NUM_DRONES, 3))
+        self.acc = np.zeros((self.NUM_DRONES, 3))
+        self.ang_acc = np.zeros((self.NUM_DRONES, 3))
+        self.last_vel = np.zeros((self.NUM_DRONES, 3))
+        self.last_ang_v = np.zeros((self.NUM_DRONES, 3))
         if self.PHYSICS == Physics.DYN:
             self.rpy_rates = np.zeros((self.NUM_DRONES, 3))
         # Set PyBullet's parameters
@@ -619,8 +612,9 @@ class BaseHetero(gym.Env):
 
         """
         state = np.hstack([self.pos[nth_drone, :], self.quat[nth_drone, :], self.rpy[nth_drone, :],
-                           self.vel[nth_drone, :], self.ang_v[nth_drone, :], self.last_clipped_action[nth_drone, :]])
-        return state.reshape(20,)
+                           self.vel[nth_drone, :], self.ang_v[nth_drone, :], self.last_clipped_action[nth_drone, :],
+                           self.acc[nth_drone, :], self.ang_acc[nth_drone, :]])
+        return state.reshape(26,)
 
     #===================================================================================
 
@@ -833,9 +827,9 @@ class BaseHetero(gym.Env):
         """
         
         drone_entity = self.DRONE_CFG[nth_drone]
-        #### Rotation matrix of the base ###########################
+        # Rotation matrix of the base
         base_rot = np.array(p.getMatrixFromQuaternion(self.quat[nth_drone, :])).reshape(3, 3)
-        #### Simple draft model applied to the base/center of mass #
+        # Simple draft model applied to the base/center of mass
         drag_factors = -1 * drone_entity.DRAG_COEFF * np.sum(np.array(2*np.pi*rpm/60))
         drag = np.dot(base_rot.T, drag_factors*np.array(self.vel[nth_drone, :]))
         p.applyExternalForce(self.DRONE_IDS[nth_drone],
@@ -955,7 +949,7 @@ class BaseHetero(gym.Env):
             [-r,  0,  p, q],
             [ q, -p,  0, r],
             [-p, -q, -r, 0]
-        ]) * .5
+        ]) * 0.5
         theta = omega_norm * dt / 2
         quat = np.dot(np.eye(4) * np.cos(theta) + 2 / omega_norm * lambda_ * np.sin(theta), quat)
         return quat
