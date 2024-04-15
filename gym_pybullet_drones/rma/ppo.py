@@ -12,6 +12,8 @@ from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticP
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import explained_variance, get_schedule_fn
 
+import wandb
+
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
@@ -81,7 +83,7 @@ class PPO(OnPolicyAlgorithm):
         self,
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule] = 3e-4,
+        learning_rate: Union[float, Schedule] = 1e-3,
         n_steps: int = 2048,
         batch_size: int = 64,
         n_epochs: int = 10,
@@ -289,19 +291,28 @@ class PPO(OnPolicyAlgorithm):
 
         # Logs
         self.logger.record("train/entropy_loss", np.mean(entropy_losses))
+        wandb.log({'train/entropy_loss':np.mean(entropy_losses)},step = self.num_timesteps)
         self.logger.record("train/policy_gradient_loss", np.mean(pg_losses))
+        wandb.log({'train/policy_gradient_loss':np.mean(pg_losses)},step = self.num_timesteps)
         self.logger.record("train/value_loss", np.mean(value_losses))
+        wandb.log({'train/value_loss':np.mean(value_losses)},step = self.num_timesteps)
         self.logger.record("train/approx_kl", np.mean(approx_kl_divs))
+        wandb.log({'train/approx_kl':np.mean(approx_kl_divs)},step = self.num_timesteps)
         self.logger.record("train/clip_fraction", np.mean(clip_fractions))
+        wandb.log({'train/clip_fraction':np.mean(clip_fractions)},step = self.num_timesteps)
         self.logger.record("train/loss", loss.item())
+        wandb.log({'train/loss': loss.item()},step = self.num_timesteps)
         self.logger.record("train/explained_variance", explained_var)
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
-
+            wandb.log({'train/std': th.exp(self.policy.log_std).mean().item()},step = self.num_timesteps)
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+        wandb.log({'train/n_updates': self._n_updates},step = self.num_timesteps)
         self.logger.record("train/clip_range", clip_range)
+        wandb.log({'train/clip_range': clip_range},step = self.num_timesteps)
         if self.clip_range_vf is not None:
             self.logger.record("train/clip_range_vf", clip_range_vf)
+            wandb.log({'train/clip_range_vf': clip_range_vf},step = self.num_timesteps)
 
     def learn(
         self: SelfPPO,

@@ -31,7 +31,7 @@ from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.enums import DroneModel, ObservationType, ActionType
 from gym_pybullet_drones.envs.BaseHetero import DroneEntity
-from gym_pybullet_drones.envs.TwoDroneDocking import MultiDocking
+from gym_pybullet_drones.envs.MultiDocking import TwoDroneDock
 from gym_pybullet_drones.rma.ppo import PPO
 from gym_pybullet_drones.rma.rma_phase1 import RMA_phase1
 
@@ -66,33 +66,29 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
         os.makedirs(filename+'/')
 
     
-    train_env = make_vec_env(MultiDocking,
-                            env_kwargs=dict(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=30, pyb_freq=240),
+    train_env = make_vec_env(TwoDroneDock,
+                            env_kwargs=dict(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=100, pyb_freq=200),
                             n_envs=1,
                             seed=10086,
                             )
-    eval_env = MultiDocking(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=30, pyb_freq=240)
+    eval_env = TwoDroneDock(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=100, pyb_freq=200)
 
     # =========================  Check the Env Space ===============================
     print('[INFO] Action space:', train_env.action_space)
     print('[INFO] Observation space:', train_env.observation_space)
 
     # ======================  Define the Train function ============================
-    wandb.init(project="real_world_learning", name=f"run_1", entity="hiperlab")
+    wandb.init(project="real_world_learning", name=f"run_2", entity="hiperlab")
     
     model = PPO(policy = 'MlpPolicy',
                 env = train_env,
-                policy_kwargs = dict(
-                activation_fn= torch.nn.Tanh, #torch.nn.ReLU,
-                # net_arch=[dict(pi=[256, 256], vf=[512, 512])],
-                log_std_init=-0.5,
-                ),
+                # policy_kwargs = dict(activation_fn= torch.nn.Tanh, #torch.nn.ReLU, net_arch=[dict(pi=[256, 256], vf=[512, 512])], log_std_init=-0.5,),
                 use_sde = False,
-                n_steps = 10,
-                batch_size = 32,
+                n_steps = 1000,
+                batch_size = 128,
                 seed = 1,
                 # tensorboard_log=filename+'/tb/',
-                ent_coef = 0.0,
+                ent_coef = 0.01,
                 verbose=1)
 
     # =====================  Define the Reward Threshold ===========================
@@ -109,14 +105,14 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
                                  verbose=1,
                                  best_model_save_path=filename+'/',
                                  log_path=filename+'/',
-                                 eval_freq=100,
+                                 eval_freq=1000,
                                  deterministic=True,
                                  render=False)
     
     
-    model.learn(total_timesteps=int(1e6),
+    model.learn(total_timesteps=int(2e6),
                 callback=eval_callback,
-                log_interval=100)
+                log_interval=1000)
     
     wandb.finish()
 
@@ -140,14 +136,13 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
 
     #### Show (and record a video of) the model's performance ##
     
-    test_env = MultiDocking(gui=gui,
+    test_env = TwoDroneDock(gui=gui,
                             drone_cfg=DRONE_CFG,
                             obs=DEFAULT_OBS,
                             act=DEFAULT_ACT,
-                            ctrl_freq=200, 
-                            pyb_freq=200,
+                            ctrl_freq=100, pyb_freq=200,
                             record=record_video)
-    test_env_nogui = MultiDocking(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT)
+    test_env_nogui = TwoDroneDock(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT)
     logger = Logger(logging_freq_hz=int(test_env.CTRL_FREQ),
                 drone_cfg=DRONE_CFG,
                 output_folder=output_folder,

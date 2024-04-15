@@ -65,8 +65,6 @@ class BaseRLHetero(BaseHetero):
         """
         # Create a buffer for the last 0.5 sec of actions
         self.NUM_DRONES = len(drone_cfg)
-        self.ACTION_BUFFER_SIZE = int(ctrl_freq//2) 
-        self.action_buffer = deque(maxlen=self.ACTION_BUFFER_SIZE)
         vision_attributes = False # We don't take RGB as the input
         self.OBS_TYPE = obs
         self.ACT_TYPE = act
@@ -91,9 +89,11 @@ class BaseRLHetero(BaseHetero):
                          vision_attributes=vision_attributes,
                          )
         # Set a limit on the maximum target speed
+        '''
         if act == ActionType.VEL:
             for drone_idx, drone_entity in enumerate(self.DRONE_CFG):   
                 drone_entity.SPEED_LIMIT = 0.03 * drone_entity.MAX_SPEED_KMH * (1000/3600)
+        '''
 
     def _actionSpace(self):
         """Returns the action space of the environment.
@@ -104,6 +104,7 @@ class BaseRLHetero(BaseHetero):
             A Box of size NUM_DRONES x 4, 3, or 1, depending on the action type.
 
         """
+        '''
         if self.ACT_TYPE in [ActionType.RPM, ActionType.VEL]:
             size = 4
         elif self.ACT_TYPE==ActionType.PID:
@@ -113,12 +114,12 @@ class BaseRLHetero(BaseHetero):
         else:
             print("[ERROR] in BaseRLAviary._actionSpace()")
             exit()
+        '''
+        size = 4
         
-        act_lower_bound = np.array([-1*np.ones(size) for i in range(self.NUM_DRONES)])
-        act_upper_bound = np.array([+1*np.ones(size) for i in range(self.NUM_DRONES)])
-        #
-        for i in range(self.ACTION_BUFFER_SIZE):
-            self.action_buffer.append(np.zeros(size))
+        act_lower_bound = np.array([-1 * np.ones(size) for i in range(self.NUM_DRONES)])
+        act_upper_bound = np.array([+1 * np.ones(size) for i in range(self.NUM_DRONES)])
+        
         #
         return spaces.Box(low=act_lower_bound, high=act_upper_bound, dtype=np.float32)
 
@@ -151,13 +152,14 @@ class BaseRLHetero(BaseHetero):
             commanded to the 4 motors of each drone.
 
         """
-        self.action_buffer.append(action)
+        # self.action_buffer.append(action)
         rpm = np.zeros((self.NUM_DRONES, 4))
         for k in range(action.shape[0]):
             drone_entity = self.DRONE_CFG[k]
             target = action[k, :]
-            if self.ACT_TYPE == ActionType.RPM:
-                rpm[k,:] = np.array(drone_entity.HOVER_RPM * (1+0.05*target))
+            # if self.ACT_TYPE == ActionType.RPM:
+            rpm[k,:] = np.array(drone_entity.HOVER_RPM * (1+0.05*target))
+            '''
             elif self.ACT_TYPE == ActionType.PID:
                 state = self._getDroneStateVector(k)
                 next_pos = self._calculateNextStep(
@@ -201,12 +203,13 @@ class BaseRLHetero(BaseHetero):
                                                         target_pos=state[0:3]+0.1*np.array([0,0,target[0]])
                                                         )
                 rpm[k,:] = res
+            
             else:
                 print("[ERROR] in BaseRLAviary._preprocessAction()")
                 exit()
+            '''
         return rpm
 
-    ################################################################################
 
     def _observationSpace(self):
         """Returns the observation space of the environment.
@@ -218,7 +221,7 @@ class BaseRLHetero(BaseHetero):
 
         """
         assert self.OBS_TYPE == ObservationType.KIN
-        # Observation vector: [X, Y, Z, R, P, Y, VX, VY, VZ, WX, WY, WZ, AX, AY, AZ, ax, ay, az]
+        # obs = [X, Y, Z, R, P, Y, VX, VY, VZ, WX, WY, WZ, AX, AY, AZ, ax, ay, az] + [X2, Y2, Z2, R2, P2, Y2]
         lo = -100.0
         hi = +100.0
         obs_lower_bound = np.array([[lo,lo,0, lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,0, lo,lo,lo] for i in range(self.NUM_DRONES)])
@@ -329,7 +332,7 @@ class MultiDocking(BaseRLHetero):
         
         self.TARGET_POS = np.array([
             [0, 0, 1.5, 0, 0, 0],
-            [0, 0, 1.7, 0, 0, 0]
+            [0, 0, 1.6, 0, 0, 0]
         ])
         self.TARGET_VEL = np.zeros_like(self.TARGET_POS)
         self.TARGET_ACC = np.zeros_like(self.TARGET_POS)
@@ -390,7 +393,7 @@ class MultiDocking(BaseRLHetero):
         """
         states = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
         for i in range(self.NUM_DRONES):
-            if (abs(states[i][0]) > 2.0 or abs(states[i][1]) > 2.0 or states[i][2] > 2.0 # Truncate when a drones is too far away
+            if (abs(states[i][0]) > 5.0 or abs(states[i][1]) > 5.0 or states[i][2] > 5.0 # Truncate when a drones is too far away
              or abs(states[i][7]) > 0.4 or abs(states[i][8]) > 0.4 # Truncate when a drone is too tilted
             ):
                 return True

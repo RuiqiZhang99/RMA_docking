@@ -171,9 +171,11 @@ class BaseHetero(gym.Env):
         self.USER_DEBUG = user_debug_gui
         self.OUTPUT_FOLDER = output_folder
         
+        '''
         #========================= Load URDF ==========================
         for drone_idx, drone_entity in enumerate(self.DRONE_CFG):
             setattr(self, f'DRONE_{drone_idx}', drone_entity)
+        '''
         
         #============ Create attributes for vision tasks =============
         if self.RECORD:

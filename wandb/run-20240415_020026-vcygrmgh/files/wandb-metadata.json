@@ -1,0 +1,148 @@
+{
+    "os": "Linux-5.15.0-102-generic-x86_64-with-glibc2.31",
+    "python": "3.10.14",
+    "heartbeatAt": "2024-04-15T09:00:27.223329",
+    "startedAt": "2024-04-15T09:00:26.630306",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/rich/RMA_docking/gym_pybullet_drones/multidocking_train.py",
+    "codePathLocal": "gym_pybullet_drones/multidocking_train.py",
+    "codePath": "gym_pybullet_drones/multidocking_train.py",
+    "git": {
+        "remote": "git@github.com:ruiqizhang99/rma_docking.git",
+        "commit": "2d3e3b24503e3782ed07296c5f6c8d698177cc30"
+    },
+    "email": "richzhang@berkeley.edu",
+    "root": "/home/rich/RMA_docking",
+    "host": "rich--home",
+    "username": "rich",
+    "executable": "/home/rich/miniconda3/envs/drones/bin/python",
+    "cpu_count": 12,
+    "cpu_count_logical": 20,
+    "cpu_freq": {
+        "current": 2179.5706,
+        "min": 800.0,
+        "max": 4580.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2321.907,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3821.966,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 1926.158,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2634.029,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3928.61,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2665.959,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 2560.713,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4900.0
+        },
+        {
+            "current": 3448.567,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 3639.486,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2100.0,
+            "min": 800.0,
+            "max": 4800.0
+        },
+        {
+            "current": 2075.262,
+            "min": 800.0,
+            "max": 3600.0
+        },
+        {
+            "current": 2736.995,
+            "min": 800.0,
+            "max": 3600.0
+        },
+        {
+            "current": 1981.257,
+            "min": 800.0,
+            "max": 3600.0
+        },
+        {
+            "current": 2915.794,
+            "min": 800.0,
+            "max": 3600.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 294.22015380859375,
+            "used": 229.09450149536133
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3070",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3070",
+            "memory_total": 8589934592
+        }
+    ],
+    "memory": {
+        "total": 31.068275451660156
+    }
+}

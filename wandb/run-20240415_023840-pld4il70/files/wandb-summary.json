@@ -1,0 +1,1 @@
+{"_wandb": {"runtime": 2}, "train/entropy_loss": -7.354614210128784, "_timestamp": 1713173923.670523, "train/policy_gradient_loss": -0.032095422185958, "train/value_loss": 39.50584411621094, "_runtime": 2.6895699501037598, "_step": 50}
