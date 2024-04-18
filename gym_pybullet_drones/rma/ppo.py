@@ -92,7 +92,7 @@ class PPO(OnPolicyAlgorithm):
         clip_range: Union[float, Schedule] = 0.2,
         clip_range_vf: Union[None, float, Schedule] = None,
         normalize_advantage: bool = True,
-        ent_coef: float = 0.01,
+        ent_coef: float = 0.1,
         vf_coef: float = 0.5,
         max_grad_norm: float = 0.5,
         use_sde: bool = False,

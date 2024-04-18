@@ -67,11 +67,11 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
 
     
     train_env = make_vec_env(TwoDroneDock,
-                            env_kwargs=dict(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=100, pyb_freq=200),
-                            n_envs=1,
+                            env_kwargs=dict(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=200),
+                            n_envs=10,
                             seed=10086,
                             )
-    eval_env = TwoDroneDock(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=100, pyb_freq=200)
+    eval_env = TwoDroneDock(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT, ctrl_freq=200)
 
     # =========================  Check the Env Space ===============================
     print('[INFO] Action space:', train_env.action_space)
@@ -84,9 +84,10 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
                 env = train_env,
                 # policy_kwargs = dict(activation_fn= torch.nn.Tanh, #torch.nn.ReLU, net_arch=[dict(pi=[256, 256], vf=[512, 512])], log_std_init=-0.5,),
                 use_sde = False,
-                n_steps = 1000,
-                batch_size = 128,
-                seed = 1,
+                n_steps = 200,
+                batch_size = 512,
+                n_epochs= 5,
+                seed = 10086,
                 # tensorboard_log=filename+'/tb/',
                 ent_coef = 0.01,
                 verbose=1)
@@ -101,16 +102,16 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
     callback_on_best = StopTrainingOnRewardThreshold(reward_threshold=target_reward, verbose=1)
     '''
     eval_callback = EvalCallback(eval_env,
-                                 # callback_on_new_best=callback_on_best,
-                                 verbose=1,
-                                 best_model_save_path=filename+'/',
-                                 log_path=filename+'/',
-                                 eval_freq=1000,
-                                 deterministic=True,
-                                 render=False)
+                                # callback_on_new_best = callback_on_best,
+                                verbose=1,
+                                best_model_save_path=filename+'/',
+                                log_path=filename+'/',
+                                eval_freq=2000,
+                                deterministic=True,
+                                render=False)
     
     
-    model.learn(total_timesteps=int(2e6),
+    model.learn(total_timesteps=int(1e7),
                 callback=eval_callback,
                 log_interval=1000)
     
@@ -140,7 +141,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER,
                             drone_cfg=DRONE_CFG,
                             obs=DEFAULT_OBS,
                             act=DEFAULT_ACT,
-                            ctrl_freq=100, pyb_freq=200,
+                            ctrl_freq=200,
                             record=record_video)
     test_env_nogui = TwoDroneDock(drone_cfg=DRONE_CFG, obs=DEFAULT_OBS, act=DEFAULT_ACT)
     logger = Logger(logging_freq_hz=int(test_env.CTRL_FREQ),

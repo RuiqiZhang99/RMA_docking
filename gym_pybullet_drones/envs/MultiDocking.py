@@ -107,7 +107,7 @@ class TwoDroneDock(gym.Env):
                  initial_xyzs = np.array([[0, 0, 0], [1, 1, 0]]),
                  initial_rpys = np.array([[0, 0, 0], [0, 0, 0]]),
                  physics: Physics=Physics.PYB,
-                 pyb_freq: int = 500,
+                 # pyb_freq: int = 500,
                  ctrl_freq: int = 500,
                  sim_time: float = 10.0,
                  gui = False,
@@ -157,7 +157,7 @@ class TwoDroneDock(gym.Env):
         self.RAD2DEG = 180 / np.pi
         self.DEG2RAD = np.pi / 180
         self.CTRL_FREQ = ctrl_freq
-        self.PYB_FREQ = pyb_freq
+        self.PYB_FREQ = 2*ctrl_freq
         if self.PYB_FREQ % self.CTRL_FREQ != 0:
             raise ValueError('[ERROR] in BaseHetero.__init__(), pyb_freq is not divisible by env_freq.')
         self.PYB_STEPS_PER_CTRL = int(self.PYB_FREQ / self.CTRL_FREQ)
@@ -1070,8 +1070,10 @@ class TwoDroneDock(gym.Env):
         # obs = [X, Y, Z, R, P, Y, VX, VY, VZ, WX, WY, WZ, AX, AY, AZ, ax, ay, az] + [X2, Y2, Z2, R2, P2, Y2]
         lo = -100.0
         hi = +100.0
-        obs_lower_bound = np.array([[lo,lo,0, lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,0, lo,lo,lo] for i in range(self.NUM_DRONES)])
-        obs_upper_bound = np.array([[hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi] for i in range(self.NUM_DRONES)])
+        # obs_lower_bound = np.array([[lo,lo,0, lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,0, lo,lo,lo] for i in range(self.NUM_DRONES)])
+        # obs_upper_bound = np.array([[hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi] for i in range(self.NUM_DRONES)])
+        obs_lower_bound = np.array([[lo,lo,0, lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo,lo] for i in range(self.NUM_DRONES)])
+        obs_upper_bound = np.array([[hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi,hi] for i in range(self.NUM_DRONES)])
         
         return spaces.Box(low=obs_lower_bound, high=obs_upper_bound, dtype=np.float32)
     
@@ -1080,7 +1082,15 @@ class TwoDroneDock(gym.Env):
     def _computeObs(self):
         
         assert self.OBS_TYPE == ObservationType.KIN
-        
+        ret = np.zeros((self.NUM_DRONES, 18))
+        obs_1 = self._getDroneStateVector(nth_drone=0)
+        obs_2 = self._getDroneStateVector(nth_drone=1)
+        # obs = [X, Y, Z, R, P, Y, VX, VY, VZ, WX, WY, WZ, AX, AY, AZ, ax, ay, az] + [X2, Y2, Z2, R2, P2, Y2]
+        true_obs_1 = np.hstack([obs_1[0:3], obs_1[7:16], obs_1[19:25]]).reshape(18)
+        true_obs_2 = np.hstack([obs_2[0:3], obs_2[7:16], obs_2[19:25]]).reshape(18)
+        ret[0, :] = true_obs_1
+        ret[1, :] = true_obs_2
+        '''
         ret = np.zeros((self.NUM_DRONES, 24))
         obs_1 = self._getDroneStateVector(nth_drone=0)
         obs_2 = self._getDroneStateVector(nth_drone=1)
@@ -1089,6 +1099,7 @@ class TwoDroneDock(gym.Env):
         true_obs_2 = np.hstack([obs_2[0:3], obs_2[7:16], obs_2[19:25], obs_1[0:3], obs_1[7:10]]).reshape(24)
         ret[0, :] = true_obs_1
         ret[1, :] = true_obs_2
+        '''
         if self.OBS_NORM:
             ret = ret * 0.01
         return ret
@@ -1113,19 +1124,20 @@ class TwoDroneDock(gym.Env):
             drone_entity = self.DRONE_CFG[k]
             target = action[k, :]
             # if self.ACT_TYPE == ActionType.RPM:
-            rpm[k,:] = np.array(drone_entity.HOVER_RPM * (1+0.1*target))
+            rpm[k,:] = np.array(drone_entity.HOVER_RPM * (1+0.2*target))
         return rpm
 
     #===================================================================================
 
     def _computeReward(self):
-        self.alive_reward = 3
+        self.alive_reward = 2 / self.NUM_DRONES
         states = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
         ret = 0
         for i in range(self.NUM_DRONES):
-            ret += self.alive_reward - np.linalg.norm(self.TARGET_POS[i,:3]-states[i][0:3], ord=2)\
-                - np.linalg.norm(self.TARGET_POS[i,3:6]-states[i][7:10], ord=2) - 0.1 * np.linalg.norm(states[i][3:7], ord=2)
-            
+            pos_error = np.linalg.norm(self.TARGET_POS[i,:3]-states[i, 0:3])
+            rpy_error = np.linalg.norm(self.TARGET_POS[i,3:6]-states[i, 7:10])
+            # velo_error = np.linalg.norm(states[i, 10:13]) + np.linalg.norm(self.TARGET_VEL[i, 3:6] - states[i, 13:16])
+            ret += self.alive_reward - 0.5*pos_error - 0.3*rpy_error   
         return ret
 
 
@@ -1149,7 +1161,7 @@ class TwoDroneDock(gym.Env):
         """
         states = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
         for i in range(self.NUM_DRONES):
-            if (abs(states[i][0]) > 5.0 or abs(states[i][1]) > 5.0 or states[i][2] > 3.0 # Truncate when a drones is too far away
+            if (abs(states[i][0]) > 2.0 or abs(states[i][1]) > 2.0 or states[i][2] > 2.0 # Truncate when a drones is too far away
              or abs(states[i][7]) > 0.4 or abs(states[i][8]) > 0.4 # Truncate when a drone is too tilted
             ):
                 return True
